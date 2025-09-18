@@ -181,8 +181,8 @@ runs:
         author: ${{ inputs.author }}
         branch: ${{ inputs.pull-request-branch }}
         delete-branch: true
-        title: ${{ steps.merge.outputs.pull_request_title }}
-        body: ${{ steps.merge.outputs.pull_request_body }}
+        title: ${{ steps.fetch.outputs.pull_request_title }}
+        body: ${{ steps.fetch.outputs.pull_request_body }}
 
     - name: Find an opened merge conflict issue
       id: find_issue
