@@ -175,7 +175,6 @@ runs:
         GIT_COMMITTER_EMAIL: ${{ steps.config.outputs.committer_email }}
 
     - name: Create a pull request
-      if: steps.merge.outputs.conflict == 'false'
       uses: peter-evans/create-pull-request@v7
       with:
         committer: ${{ inputs.committer }}
