@@ -149,7 +149,7 @@ runs:
             echo '~~~~~~~~'
             git diff
             echo '~~~~~~~~'
-          } >/tmp/conflict-issue-message.md
+          } >/tmp/conflict_issue_message.md
           git merge --abort
 
           {
@@ -186,7 +186,7 @@ runs:
         title: ${{ steps.merge.outputs.pull_request_title }}
         body: ${{ steps.merge.outputs.pull_request_body }}
 
-    - name: Find an opened merge conflict issue
+    - name: Find an opened conflict issue
       id: find_issue
       uses: actions/github-script@v8
       with:
@@ -214,3 +214,38 @@ runs:
             page++;
           }
           return found || 0;
+
+    - name: Create a new conflict issue
+      if: steps.merge.outputs.conflict == 'true' && steps.find_issue.outputs.result == '0'
+      uses: peter-evans/create-issue-from-file@v5
+      with:
+        title: ${{ steps.merge.outputs.issue_title }}
+        content-filepath: /tmp/conflict_issue_message.md
+
+    - name: Update the conflict issue
+      if: steps.merge.outputs.conflict == 'true' && steps.find_issue.outputs.result != '0'
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const fs = require('fs');
+          const issue_number = ${{ steps.find_issue.outputs.result }};
+          const body = fs.readFileSync('/tmp/conflict_issue_message.md', 'utf8');
+          await github.rest.issues.update({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: issue_number,
+            body: body
+          });
+
+    - name: Close the conflict issue
+      if: steps.merge.outputs.conflict == 'false' && steps.find_issue.outputs.result != '0'
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const issue_number = ${{ steps.find_issue.outputs.result }};
+          await github.rest.issues.update({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: issue_number,
+            state: 'closed'
+          });
