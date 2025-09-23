@@ -83,8 +83,8 @@ runs:
       with:
         fetch-depth: 0
 
-    - name: Fetch upstream
-      id: fetch
+    - name: Merge upstream
+      id: merge
       shell: bash
       run: |
         upstream_repository="${{ inputs.upstream-repository }}"
@@ -114,43 +114,27 @@ runs:
         ${{ inputs.merge-commit-message }}
         __CHECK_UPSTREAM_END__
 
-        pull_request_title=$(envsubst "$variables" <<'__CHECK_UPSTREAM_END__'
-        ${{ inputs.pull-request-title }}
-        __CHECK_UPSTREAM_END__
-        )
-        echo "pull_request_title=$pull_request_title" >>"$GITHUB_OUTPUT"
-
-        {
-          echo 'pull_request_body<<__CHECK_UPSTREAM_END__'
-          echo 'This pull request merges changes from the upstream repository.'
-          echo
-          echo "Upstream repository: [$upstream_repository]($upstream_url)  "
-          echo "Upstream branch: [$upstream_branch]($upstream_branch_url)  "
-          echo "Upstream commit: [$upstream_short_sha]($upstream_commit_url)"
-          echo '__CHECK_UPSTREAM_END__'
-        } >>"$GITHUB_OUTPUT"
-
-        issue_title=$(envsubst "$variables" <<'__CHECK_UPSTREAM_END__'
-        ${{ inputs.issue-title }}
-        __CHECK_UPSTREAM_END__
-        )
-        echo "issue_title=$issue_title" >>"$GITHUB_OUTPUT"
-
-        issue_search_title=$(cat <<'__CHECK_UPSTREAM_END__'
-        ${{ inputs.issue-title }}
-        __CHECK_UPSTREAM_END__
-        )
-        issue_search_title="${issue_search_title%%\$*}"
-        echo "issue_search_title=$issue_search_title" >>"$GITHUB_OUTPUT"
-
-    - name: Merge upstream
-      id: merge
-      shell: bash
-      run: |
-        if git merge upstream/main -F /tmp/merge_commit_message.txt; then
+        if git merge "upstream/$upstream_branch" -F /tmp/merge_commit_message.txt; then
           echo "conflict=false" >>"$GITHUB_OUTPUT"
+
+          pull_request_title=$(envsubst "$variables" <<'__CHECK_UPSTREAM_END__'
+          ${{ inputs.pull-request-title }}
+          __CHECK_UPSTREAM_END__
+          )
+          echo "pull_request_title=$pull_request_title" >>"$GITHUB_OUTPUT"
+
+          {
+            echo 'pull_request_body<<__CHECK_UPSTREAM_END__'
+            echo 'This pull request merges changes from the upstream repository.'
+            echo
+            echo "Upstream repository: [$upstream_repository]($upstream_url)  "
+            echo "Upstream branch: [$upstream_branch]($upstream_branch_url)  "
+            echo "Upstream commit: [$upstream_short_sha]($upstream_commit_url)"
+            echo '__CHECK_UPSTREAM_END__'
+          } >>"$GITHUB_OUTPUT"
         else
           echo "conflict=true" >>"$GITHUB_OUTPUT"
+
           {
             echo "### Merge conflict when merging [$upstream_repository@$upstream_short_sha]($upstream_commit_url)"
             echo
@@ -167,7 +151,25 @@ runs:
             echo '~~~~~~~~'
           } >/tmp/conflict-issue-message.md
           git merge --abort
+
+          {
+            echo 'pull_request_title=INTERNAL ERROR'
+            echo 'pull_request_body=INTERNAL ERROR'
+          } >>"$GITHUB_OUTPUT"
         fi
+
+        issue_title=$(envsubst "$variables" <<'__CHECK_UPSTREAM_END__'
+        ${{ inputs.issue-title }}
+        __CHECK_UPSTREAM_END__
+        )
+        echo "issue_title=$issue_title" >>"$GITHUB_OUTPUT"
+
+        issue_search_title_prefix=$(cat <<'__CHECK_UPSTREAM_END__'
+        ${{ inputs.issue-title }}
+        __CHECK_UPSTREAM_END__
+        )
+        issue_search_title_prefix="${issue_search_title_prefix%%\$*}"
+        echo "issue_search_title_prefix=$issue_search_title_prefix" >>"$GITHUB_OUTPUT"
       env:
         GIT_AUTHOR_NAME: ${{ steps.config.outputs.author_name }}
         GIT_AUTHOR_EMAIL: ${{ steps.config.outputs.author_email }}
@@ -181,8 +183,8 @@ runs:
         author: ${{ inputs.author }}
         branch: ${{ inputs.pull-request-branch }}
         delete-branch: true
-        title: ${{ steps.fetch.outputs.pull_request_title }}
-        body: ${{ steps.fetch.outputs.pull_request_body }}
+        title: ${{ steps.merge.outputs.pull_request_title }}
+        body: ${{ steps.merge.outputs.pull_request_body }}
 
     - name: Find an opened merge conflict issue
       id: find_issue
@@ -190,12 +192,25 @@ runs:
       with:
         result-encoding: string
         script: |
-          const issueSearchTitle = "${{ steps.fetch.outputs.issue_search_title }}";
-          const { data: issues } = await github.rest.issues.listForRepo({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            state: 'open',
-            per_page: 100,
-          });
-          const found = issues.find(issue => issue.title.startsWith(issueSearchTitle));
-          return found ? found.number : 0
+          const titlePrefix = "${{ steps.merge.outputs.issue_search_title_prefix }}";
+          let page = 1;
+          let found = null;
+          while (true) {
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+              page: page,
+            });
+            if (issues.length === 0) {
+              break;
+            }
+            const match = issues.find(issue => issue.title.startsWith(titlePrefix));
+            if (match) {
+              found = match.number;
+              break;
+            }
+            page++;
+          }
+          return found || 0;
