@@ -114,8 +114,14 @@ runs:
         ${{ inputs.merge-commit-message }}
         __CHECK_UPSTREAM_END__
 
+        old_sha=$(git rev-parse HEAD)
+
         if git merge "upstream/$upstream_branch" -F /tmp/merge_commit_message.txt; then
           echo "conflict=false" >>"$GITHUB_OUTPUT"
+
+          if git diff --quiet "$old_sha" HEAD; then
+            git reset --hard "$old_sha"
+          fi
 
           pull_request_title=$(envsubst "$variables" <<'__CHECK_UPSTREAM_END__'
         ${{ inputs.pull-request-title }}
