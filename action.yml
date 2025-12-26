@@ -118,8 +118,8 @@ runs:
           echo "conflict=false" >>"$GITHUB_OUTPUT"
 
           pull_request_title=$(envsubst "$variables" <<'__CHECK_UPSTREAM_END__'
-          ${{ inputs.pull-request-title }}
-          __CHECK_UPSTREAM_END__
+        ${{ inputs.pull-request-title }}
+        __CHECK_UPSTREAM_END__
           )
           echo "pull_request_title=$pull_request_title" >>"$GITHUB_OUTPUT"
 
