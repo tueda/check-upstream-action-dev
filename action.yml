@@ -53,22 +53,26 @@ runs:
     - name: Configuration
       id: config
       shell: bash
+      env:
+        UPSTREAM_REPOSITORY: ${{ inputs.upstream-repository }}
+        AUTHOR: ${{ inputs.author }}
+        COMMITTER: ${{ inputs.committer }}
       run: |
         if [ -d .git ]; then
           echo "initialized=true" >>"$GITHUB_OUTPUT"
         else
           echo "initialized=false" >>"$GITHUB_OUTPUT"
         fi
-        if [[ "${{ inputs.upstream-repository }}" == http* ]]; then
-          echo "upstream_url=${{ inputs.upstream-repository }}" >>"$GITHUB_OUTPUT"
+        if [[ "$UPSTREAM_REPOSITORY" == http* ]]; then
+          echo "upstream_url=$UPSTREAM_REPOSITORY" >>"$GITHUB_OUTPUT"
         else
-          echo "upstream_url=https://github.com/${{ inputs.upstream-repository }}.git" >>"$GITHUB_OUTPUT"
+          echo "upstream_url=https://github.com/$UPSTREAM_REPOSITORY.git" >>"$GITHUB_OUTPUT"
         fi
-        author="${{ inputs.author }}"
+        author="$AUTHOR"
         author_name="${author%% <*}"
         author_email="${author#*<}"
         author_email="${author_email%>}"
-        committer="${{ inputs.committer }}"
+        committer="$COMMITTER"
         committer_name="${committer%% <*}"
         committer_email="${committer#*<}"
         committer_email="${committer_email%>}"
@@ -79,22 +83,35 @@ runs:
 
     - name: Checkout the repository
       if: steps.config.outputs.initialized == 'false'
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6.0.3
       with:
         fetch-depth: 0
+        persist-credentials: false
 
     - name: Merge upstream
       id: merge
       shell: bash
+      env:
+        UPSTREAM_REPOSITORY: ${{ inputs.upstream-repository }}
+        UPSTREAM_URL: ${{ steps.config.outputs.upstream_url }}
+        UPSTREAM_BRANCH: ${{ inputs.upstream-branch }}
+        MERGE_COMMIT_MESSAGE: ${{ inputs.merge-commit-message }}
+        PULL_REQUEST_TITLE: ${{ inputs.pull-request-title }}
+        ISSUE_TITLE: ${{ inputs.issue-title }}
+        GIT_AUTHOR_NAME: ${{ steps.config.outputs.author_name }}
+        GIT_AUTHOR_EMAIL: ${{ steps.config.outputs.author_email }}
+        GIT_COMMITTER_NAME: ${{ steps.config.outputs.committer_name }}
+        GIT_COMMITTER_EMAIL: ${{ steps.config.outputs.committer_email }}
       run: |
-        upstream_repository="${{ inputs.upstream-repository }}"
-        upstream_url="${{ steps.config.outputs.upstream_url }}"
+        upstream_repository="$UPSTREAM_REPOSITORY"
+        upstream_url="$UPSTREAM_URL"
+
         git remote add upstream "$upstream_url"
         git fetch upstream
-        if [ -z "${{ inputs.upstream-branch }}" ]; then
+        if [ -z "$UPSTREAM_BRANCH" ]; then
           upstream_branch=$(git ls-remote --symref upstream HEAD | sed -n 's|^ref: refs/heads/\([^[:space:]]*\).*|\1|p')
         else
-          upstream_branch="${{ inputs.upstream-branch }}"
+          upstream_branch="$UPSTREAM_BRANCH"
         fi
         upstream_sha=$(git rev-parse "upstream/$upstream_branch")
         upstream_short_sha=$(git rev-parse --short "upstream/$upstream_branch")
@@ -110,9 +127,7 @@ runs:
         export upstream_commit_url
         variables='$upstream_repository $upstream_url $upstream_branch $upstream_sha $upstream_short_sha $upstream_branch_url $upstream_commit_url'
 
-        cat <<'__CHECK_UPSTREAM_END__' | envsubst "$variables" >/tmp/merge_commit_message.txt
-        ${{ inputs.merge-commit-message }}
-        __CHECK_UPSTREAM_END__
+        printf '%s\n' "$MERGE_COMMIT_MESSAGE" | envsubst "$variables" >/tmp/merge_commit_message.txt
 
         old_sha=$(git rev-parse HEAD)
 
@@ -123,10 +138,8 @@ runs:
             git reset --hard "$old_sha"
           fi
 
-          pull_request_title=$(envsubst "$variables" <<'__CHECK_UPSTREAM_END__'
-        ${{ inputs.pull-request-title }}
-        __CHECK_UPSTREAM_END__
-          )
+          pull_request_title=$(printf '%s\n' "$PULL_REQUEST_TITLE" | envsubst "$variables")
+          pull_request_title="${pull_request_title//$'\n'/ }"
           echo "pull_request_title=$pull_request_title" >>"$GITHUB_OUTPUT"
 
           {
@@ -164,27 +177,17 @@ runs:
           } >>"$GITHUB_OUTPUT"
         fi
 
-        issue_title=$(envsubst "$variables" <<'__CHECK_UPSTREAM_END__'
-        ${{ inputs.issue-title }}
-        __CHECK_UPSTREAM_END__
-        )
+        issue_title=$(printf '%s\n' "$ISSUE_TITLE" | envsubst "$variables")
+        issue_title="${issue_title//$'\n'/ }"
         echo "issue_title=$issue_title" >>"$GITHUB_OUTPUT"
 
-        issue_search_title_prefix=$(cat <<'__CHECK_UPSTREAM_END__'
-        ${{ inputs.issue-title }}
-        __CHECK_UPSTREAM_END__
-        )
-        issue_search_title_prefix="${issue_search_title_prefix%%\$*}"
+        issue_search_title_prefix="${ISSUE_TITLE%%\$*}"
+        issue_search_title_prefix="${issue_search_title_prefix//$'\n'/ }"
         echo "issue_search_title_prefix=$issue_search_title_prefix" >>"$GITHUB_OUTPUT"
-      env:
-        GIT_AUTHOR_NAME: ${{ steps.config.outputs.author_name }}
-        GIT_AUTHOR_EMAIL: ${{ steps.config.outputs.author_email }}
-        GIT_COMMITTER_NAME: ${{ steps.config.outputs.committer_name }}
-        GIT_COMMITTER_EMAIL: ${{ steps.config.outputs.committer_email }}
 
     - name: Create a pull request
       if: steps.merge.outputs.conflict == 'false'
-      uses: peter-evans/create-pull-request@v7
+      uses: peter-evans/create-pull-request@v8.1.1
       with:
         committer: ${{ inputs.committer }}
         author: ${{ inputs.author }}
@@ -195,11 +198,16 @@ runs:
 
     - name: Find an opened conflict issue
       id: find_issue
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9.0.0
+      env:
+        ISSUE_SEARCH_TITLE_PREFIX: ${{ steps.merge.outputs.issue_search_title_prefix }}
       with:
         result-encoding: string
         script: |
-          const titlePrefix = "${{ steps.merge.outputs.issue_search_title_prefix }}";
+          const titlePrefix = process.env.ISSUE_SEARCH_TITLE_PREFIX;
+          if (!titlePrefix) {
+            return 0;
+          }
           let page = 1;
           let found = null;
           while (true) {
@@ -224,18 +232,20 @@ runs:
 
     - name: Create a new conflict issue
       if: steps.merge.outputs.conflict == 'true' && steps.find_issue.outputs.result == '0'
-      uses: peter-evans/create-issue-from-file@v5
+      uses: peter-evans/create-issue-from-file@v6.0.0
       with:
         title: ${{ steps.merge.outputs.issue_title }}
         content-filepath: /tmp/conflict_issue_message.md
 
     - name: Update the conflict issue
       if: steps.merge.outputs.conflict == 'true' && steps.find_issue.outputs.result != '0'
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9.0.0
+      env:
+        ISSUE_NUMBER: ${{ steps.find_issue.outputs.result }}
       with:
         script: |
           const fs = require('fs');
-          const issue_number = ${{ steps.find_issue.outputs.result }};
+          const issue_number = Number(process.env.ISSUE_NUMBER);
           const body = fs.readFileSync('/tmp/conflict_issue_message.md', 'utf8');
           await github.rest.issues.update({
             owner: context.repo.owner,
@@ -246,10 +256,12 @@ runs:
 
     - name: Close the conflict issue
       if: steps.merge.outputs.conflict == 'false' && steps.find_issue.outputs.result != '0'
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9.0.0
+      env:
+        ISSUE_NUMBER: ${{ steps.find_issue.outputs.result }}
       with:
         script: |
-          const issue_number = ${{ steps.find_issue.outputs.result }};
+          const issue_number = Number(process.env.ISSUE_NUMBER);
           await github.rest.issues.update({
             owner: context.repo.owner,
             repo: context.repo.repo,
