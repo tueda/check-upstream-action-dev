@@ -5,6 +5,7 @@
   "words": [
     "--symref",
     "COMMIT_EDITMSG",
+    "cooldown",
     "envsubst",
     "gitlint",
     "tueda",
