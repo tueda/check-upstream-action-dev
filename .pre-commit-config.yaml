@@ -6,24 +6,54 @@ repos:
     hooks:
     -   id: check-added-large-files
     -   id: check-case-conflict
+    -   id: check-illegal-windows-names
+    -   id: check-json
     -   id: check-merge-conflict
     -   id: check-symlinks
+    -   id: check-vcs-permalinks
     -   id: check-yaml
     -   id: destroyed-symlinks
+    -   id: detect-private-key
     -   id: end-of-file-fixer
     -   id: fix-byte-order-marker
     -   id: mixed-line-ending
     -   id: trailing-whitespace
 
+-   repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.37.2
+    hooks:
+    -   id: check-github-workflows
+
 -   repo: https://github.com/rhysd/actionlint
-    rev: v1.7.7
+    rev: v1.7.12
     hooks:
     -   id: actionlint
 
+-   repo: https://github.com/biomejs/pre-commit
+    rev: v2.4.16
+    hooks:
+    -   id: biome-format
+        types: [json]
+
 -   repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-    rev: 3.4.0
+    rev: 3.6.1
     hooks:
     -   id: editorconfig-checker
+
+-   repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v10.0.0
+    hooks:
+    -   id: cspell
+        exclude: ^\.cspell\.json$
+    -   id: cspell
+        name: check commit message spelling
+        args:
+            - --no-must-find-files
+            - --no-progress
+            - --no-summary
+            - --files
+            - .git/COMMIT_EDITMSG
+        stages: [commit-msg]
 
 -   repo: https://github.com/jorisroovers/gitlint
     rev: v0.19.1
