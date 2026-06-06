@@ -2,6 +2,13 @@
   "version": "0.2",
   "language": "en",
   "dictionaries": [],
-  "words": ["--symref", "COMMIT_EDITMSG", "envsubst", "gitlint", "zizmor"],
+  "words": [
+    "--symref",
+    "COMMIT_EDITMSG",
+    "envsubst",
+    "gitlint",
+    "tueda",
+    "zizmor"
+  ],
   "flagWords": []
 }
