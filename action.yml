@@ -221,7 +221,9 @@ runs:
             if (issues.length === 0) {
               break;
             }
-            const match = issues.find(issue => issue.title.startsWith(titlePrefix));
+            const match = issues.find(
+              issue => !issue.pull_request && issue.title.startsWith(titlePrefix),
+            );
             if (match) {
               found = match.number;
               break;
