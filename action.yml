@@ -120,6 +120,10 @@ runs:
         upstream_repository="$UPSTREAM_REPOSITORY"
         upstream_url="$UPSTREAM_URL"
 
+        if git remote get-url upstream >/dev/null 2>&1; then
+          echo "::error::remote 'upstream' already exists"
+          exit 1
+        fi
         git remote add upstream "$upstream_url"
         git fetch upstream
         if [ -z "$UPSTREAM_BRANCH" ]; then
