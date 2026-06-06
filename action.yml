@@ -166,7 +166,7 @@ runs:
             echo '#### git diff'
             echo
             echo '~~~~~~~~'
-            git diff
+            git diff "$old_sha"
             echo '~~~~~~~~'
           } >/tmp/conflict_issue_message.md
           git merge --abort
