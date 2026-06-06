@@ -58,6 +58,20 @@ runs:
         AUTHOR: ${{ inputs.author }}
         COMMITTER: ${{ inputs.committer }}
       run: |
+        validate_single_line_input() {
+          local name="$1"
+          local value="$2"
+
+          if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+            echo "::error::input '$name' must be a single line"
+            exit 1
+          fi
+        }
+
+        validate_single_line_input upstream-repository "$UPSTREAM_REPOSITORY"
+        validate_single_line_input author "$AUTHOR"
+        validate_single_line_input committer "$COMMITTER"
+
         if [ -d .git ]; then
           echo "initialized=true" >>"$GITHUB_OUTPUT"
         else
