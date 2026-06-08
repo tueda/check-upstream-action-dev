@@ -47,8 +47,8 @@ inputs:
     description: The committer name and email address for the merge commit.
     default: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
 
-  token:
-    description: The token used to create or update the pull request.
+  branch-token:
+    description: The token used to create or update the pull request branch.
     default: ${{ github.token }}
 
 runs:
@@ -211,7 +211,7 @@ runs:
       if: steps.merge.outputs.conflict == 'false'
       uses: peter-evans/create-pull-request@v8.1.1
       with:
-        token: ${{ inputs.token }}
+        branch-token: ${{ inputs.branch-token }}
         committer: ${{ inputs.committer }}
         author: ${{ inputs.author }}
         branch: ${{ inputs.pull-request-branch }}
