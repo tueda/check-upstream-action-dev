@@ -166,7 +166,10 @@ runs:
 
           {
             echo 'pull_request_body<<__CHECK_UPSTREAM_END__'
-            echo 'This pull request merges changes from the upstream repository.'
+            echo '> [!IMPORTANT]'
+            echo '> This pull request merges changes from the upstream repository.  '
+            echo '> Please use **Create a merge commit**.  '
+            echo '> Do not use **Squash and merge** or **Rebase and merge**, because doing so will not create a merge commit for this pull request.'
             echo
             echo "Upstream repository: [$upstream_repository]($upstream_url)  "
             echo "Upstream branch: [$upstream_branch]($upstream_branch_url)  "
