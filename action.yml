@@ -101,7 +101,7 @@ runs:
 
     - name: Checkout the repository
       if: steps.config.outputs.initialized == 'false'
-      uses: actions/checkout@v6.0.3
+      uses: actions/checkout@v7.0.0
       with:
         fetch-depth: 0
         persist-credentials: false
